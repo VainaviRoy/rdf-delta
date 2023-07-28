@@ -116,12 +116,21 @@ public class Version implements Comparable<Version> {
     }
 
     public Version dec() {
-        if ( this == INIT || this == UNSET )
-            throw new DeltaException("Attempt to get version before a non-version number: "+this);
-        if ( ! isValid() )
-            throw new DeltaException("Attempt to get dec version on a non-version number: "+this);
-        return Version.create(version-1);
+        if (this == INIT || this == UNSET) {
+            throw new DeltaException("Attempt to get version before a non-version number: " + this);
+        }
+
+        if (!isValid()) {
+            throw new DeltaException("Attempt to get dec version on a non-version number: " + this);
+        }
+
+        return createVersionDecrement();
     }
+
+    private Version createVersionDecrement() {
+        return Version.create(version - 1);
+    }
+
 
     /** Is this version a possible version? (i.e. not a marker) */
     public static boolean isValid(Version version) {
