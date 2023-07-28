@@ -29,19 +29,39 @@ import org.apache.jena.sparql.core.Quad;
  * @see DatasetGraphFactory
  */
 public class DSG {
+
+    /**
+     * Parameter object to group the Node arguments treated as a pattern for deletion.
+     */
+    private static class DeletePattern {
+        Node graphNode;
+        Node subjectNode;
+        Node predicateNode;
+        Node objectNode;
+
+        DeletePattern(Node g, Node s, Node p, Node o) {
+            this.graphNode = g;
+            this.subjectNode = s;
+            this.predicateNode = p;
+            this.objectNode = o;
+        }
+    }
+
     /**
      * Ensure the same graph object is returned by each of {@link DatasetGraph#getDefaultGraph()}
      * and {@link DatasetGraph#getGraph(Node)} each call.
-     * This function does not "double wrap" a :@code DatasetGraph};
+     * This function does not "double wrap" a {@code DatasetGraph};
      * if the argument already provides "stable graphs" then the argument is returned unchanged.
      */
     public static DatasetGraph stableViewGraphs(DatasetGraph dsgBase) {
-        if ( dsgBase instanceof DatasetGraphStableGraphs )
+        if (dsgBase instanceof DatasetGraphStableGraphs)
             return dsgBase;
+
         // No harm wrapping one of these so let's not rely on the
         // implementation details of DatasetGraphMapLink.
-//        if ( dsgBase instanceof DatasetGraphMapLink )
-//            return dsgBase;
+        // if (dsgBase instanceof DatasetGraphMapLink)
+        //     return dsgBase;
+
         DatasetGraph dsg1 = new DatasetGraphStableGraphs(dsgBase);
         return dsg1;
     }
@@ -54,33 +74,32 @@ public class DSG {
      * results into an array and then delete the quads in the array from the dataset.
      * Exit the loop if the slice is short at which point the next {@code find(g, s, p, o)} would return no matches.
      */
-    // When migrated to Jena, use this, not DatasetGraphBase code.
     public static void deleteAny(DatasetGraph dsg, Node g, Node s, Node p, Node o) {
-        deleteAny(dsg, g, s, p, o, DeleteBufferSize);
+        deleteAny(dsg, new DeletePattern(g, s, p, o), DeleteBufferSize);
     }
 
-    private static final int DeleteBufferSize = 1000 ;
+    private static final int DeleteBufferSize = 1000;
 
-    /*public*/ static void deleteAny(DatasetGraph dsg, Node g, Node s, Node p, Node o, int sliceSize) {
+    private static void deleteAny(DatasetGraph dsg, DeletePattern pattern, int sliceSize) {
         // Delete in slices rather than assume .remove() on the iterator is implemented.
         // We keep executing find(g, s, p, o) until we don't get a full slice.
-        Quad[] buffer = new Quad[DeleteBufferSize];
+        Quad[] buffer = new Quad[sliceSize];
         while (true) {
-            Iterator<Quad> iter = dsg.find(g, s, p, o);
+            Iterator<Quad> iter = dsg.find(pattern.graphNode, pattern.subjectNode, pattern.predicateNode, pattern.objectNode);
             // Get a slice
             int len = 0;
-            for ( ; len < DeleteBufferSize ; len++ ) {
-                if ( !iter.hasNext() )
+            for (; len < sliceSize; len++) {
+                if (!iter.hasNext())
                     break;
                 buffer[len] = iter.next();
             }
             // Delete them.
-            for ( int i = 0 ; i < len ; i++ ) {
+            for (int i = 0; i < len; i++) {
                 dsg.delete(buffer[i]);
                 buffer[i] = null;
             }
             // Finished?
-            if ( len < DeleteBufferSize )
+            if (len < sliceSize)
                 break;
         }
     }
