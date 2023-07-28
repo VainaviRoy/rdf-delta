@@ -39,7 +39,6 @@ public class DataSourceDescription {
     private final String name;
 
     public DataSourceDescription(Id id, String name, String uri) {
-        super();
         this.id = Objects.requireNonNull(id);
         this.name = Objects.requireNonNull(name);
         this.uri = uri;
@@ -54,7 +53,7 @@ public class DataSourceDescription {
      */
 
     public JsonObject asJson() {
-        return JSONX.buildObject(b->addJsonFields(b));
+        return JSONX.buildObject(b -> addJsonFields(b));
     }
 
     public void addJsonObject(JsonBuilder b) {
@@ -64,29 +63,29 @@ public class DataSourceDescription {
     }
 
     public void addJsonFields(JsonBuilder b) {
-        b.key(F_ID).value(id.asString());
-        b.key(F_NAME).value(name);
-        if ( uri != null )
-            b.key(F_URI).value(uri);
+        b.key(DeltaConst.F_ID).value(id.asString());
+        b.key(DeltaConst.F_NAME).value(name);
+        if (uri != null)
+            b.key(DeltaConst.F_URI).value(uri);
     }
 
     public static DataSourceDescription fromJson(JsonObject obj) {
-        String idStr = JSONX.getStrOrNull(obj, F_ID);
-        if ( idStr == null )
+        String idStr = JSONX.getStrOrNull(obj, DeltaConst.F_ID);
+        if (idStr == null)
             throw new DeltaException("Missing \"id:\" in DataSourceDescription JSON");
 
-        String name = JSONX.getStrOrNull(obj, F_NAME);
-        if ( name == null ) {
+        String name = JSONX.getStrOrNull(obj, DeltaConst.F_NAME);
+        if (name == null) {
             @SuppressWarnings("deprecation")
-            String n = JSONX.getStrOrNull(obj, F_BASE);
+            String n = JSONX.getStrOrNull(obj, DeltaConst.F_BASE);
             // Compatibility.
             Log.warn(DataSourceDescription.class, "Deprecated: Use of field name \"base\" - change to \"name\"");
             name = n;
         }
-        if ( name == null )
+        if (name == null)
             throw new DeltaException("Missing \"name:\" in DataSourceDescription JSON");
 
-        String uri = JSONX.getStrOrNull(obj, F_URI);
+        String uri = JSONX.getStrOrNull(obj, DeltaConst.F_URI);
         return new DataSourceDescription(Id.fromString(idStr), name, uri);
     }
 
@@ -97,45 +96,30 @@ public class DataSourceDescription {
 
     @Override
     public int hashCode() {
-        final int prime = 31;
-        int result = 1;
-        result = prime * result + ((id == null) ? 0 : id.hashCode());
-        result = prime * result + ((uri == null) ? 0 : uri.hashCode());
-        result = prime * result + ((name == null) ? 0 : name.hashCode());
-        return result;
+        return Objects.hash(id, uri, name);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if ( this == obj )
+        if (this == obj)
             return true;
-        if ( obj == null )
+        if (obj == null || getClass() != obj.getClass())
             return false;
-        if ( getClass() != obj.getClass() )
-            return false;
-        DataSourceDescription other = (DataSourceDescription)obj;
-        if ( id == null ) {
-            if ( other.id != null )
-                return false;
-        } else if ( !id.equals(other.id) )
-            return false;
-        if ( uri == null ) {
-            if ( other.uri != null )
-                return false;
-        } else if ( !uri.equals(other.uri) )
-            return false;
-        return true;
+        DataSourceDescription other = (DataSourceDescription) obj;
+        return Objects.equals(this.id, other.id)
+                && Objects.equals(this.uri, other.uri)
+                && Objects.equals(this.name, other.name);
     }
 
     public Id getId() {
-        return id ;
+        return id;
     }
 
     public String getUri() {
-        return uri ;
+        return uri;
     }
 
     public String getName() {
-        return name ;
+        return name;
     }
 }
