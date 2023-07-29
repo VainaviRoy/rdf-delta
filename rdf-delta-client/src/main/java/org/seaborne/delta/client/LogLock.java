@@ -276,85 +276,65 @@ public class LogLock {
      * </ul>
      */
     private static Id attemptToAcquireLock(int depth, DeltaLink dLink, Id datasourceId) {
-        // One attempt. If someone else grabs the lock, while we are waiting, go down one depth (tail recursion). */
-        DEV("acquireLockOneCycle(%d, %s)", depth, datasourceId);
-        if ( depth > LOCK_ACQUIRE_MAX_DEPTH ) {
-            // Protect against excessive retries.
-            FmtLog.warn(LOG, "Failed to initially acquire lock after %d cycles", depth);
-            return null;
-        }
-        // This is stackdepth = restart attempts.
         depth++;
 
         // Step 1: Acquire the lock or read the lock.
-        DEV(">%d Attempt to acquire lock: %s", depth, datasourceId);
-        Id lockSession = dLink.acquireLock(datasourceId);
+        Id lockSession = tryAcquireLock(dLink, datasourceId);
 
-        if ( lockSession != null )
+        if ( lockSession != null ) {
             // Success!
             return lockSession;
+        }
 
         // Step 2: Read the state.
-        //DEV(">%d Read lock: %s", depth, datasourceId);
-        LockState state = dLink.readLock(datasourceId);
-        if ( LockState.isFree(state) )
+        LockState state = readLockState(dLink, datasourceId);
+
+        if ( LockState.isFree(state) ) {
             // Lock released. Restart.
             return attemptToAcquireLock(depth, dLink, datasourceId);
-
-        DEV(">%d Initial read lock: %s state=%s", depth, datasourceId, state);
+        }
 
         // Step 3: Poll the lock.
         // Someone else has the lock.
-        // Start polling by reading the lock and checking the ticks make progress indicating the holder is still alive.
+        return pollLock(depth, dLink, datasourceId, state);
+    }
 
-        // Our record of the state.
+    private static Id tryAcquireLock(DeltaLink dLink, Id datasourceId) {
+        return dLink.acquireLock(datasourceId);
+    }
+
+    private static LockState readLockState(DeltaLink dLink, Id datasourceId) {
+        return dLink.readLock(datasourceId);
+    }
+
+    private static Id pollLock(int depth, DeltaLink dLink, Id datasourceId, LockState state) {
         int pollWaitAttempts = 0;
         Id sessionToken = state.session;
 
-        // One loop for each change of lock ownership (someone else grabs).
-        // pollReadLock includes the tracking of ticks advancing.
         for(;;) {
             pollWaitAttempts++;
-            if ( pollWaitAttempts > LOCK_STATE_CHANGE_RETRIES )
+            if ( pollWaitAttempts > LOCK_STATE_CHANGE_RETRIES ) {
                 break;
-            // Loop looking for ticks change.
-            DEV(">%d Poll lock : %s", depth, datasourceId);
+            }
 
             LockState state2 = pollReadLock(dLink, datasourceId, state);
 
             if ( LockState.isFree(state2) ) {
-                DEV("Lock became free: %s", datasourceId);
                 // Lock now free : restart.
                 return attemptToAcquireLock(depth, dLink, datasourceId);
             }
 
-            DEV(">%d Observe lock: (poll=%d) %s state=%s", depth, pollWaitAttempts, datasourceId, state);
-            // Two cases: same session, ticks have not advanced; and different session (any ticks)
             Id sessionToken2 = state2.session;
-            if ( sessionToken.equals(sessionToken2) )
+            if ( sessionToken.equals(sessionToken2) ) {
                 // Ticks not advancing.
                 break;
+            }
 
             // Someone else grabbed the session
-            DEV("Restart/other party");
-            // Move to new state.
             state = state2;
-            // Loop
         }
 
-        FmtLog.warn(LOG, "Grabbing the lock: "+datasourceId);
-
-        // Lock has been changing but we have waited too long.
-        // Grab the lock.
-
-        Id id = dLink.grabLock(datasourceId, sessionToken);
-        DEV("Grab: "+id);
-
-        if ( id != null )
-            // Grab succeeds.
-            return id;
-        // Grab fails. Someone else got it or it became free. Start again.
-        return attemptToAcquireLock(depth, dLink, datasourceId);
+        return null;
     }
 
     /** Watch the lock advance.
@@ -366,44 +346,7 @@ public class LogLock {
      * <li>if the lock changes owner, return the new lock state
      * </ul>
      */
-    private static LockState pollReadLock(DeltaLink dLink, Id datasourceId, LockState lockState) {
-        int totalAttempts = 0;
-        int sameTickAttempts = 0;
-
-        for(;;) {
-            Id lockSession = lockState.session;
-            long ticks = lockState.ticks;
-            sameTickAttempts++;
-            totalAttempts++;
-            if ( sameTickAttempts > LOCK_SAME_TICKS_RETRIES ) {
-                DEV("{%d} Lock not advancing - end polling", totalAttempts);
-                return lockState;
-            }
-            Lib.sleep(LOCK_POLL_WAIT_MS);
-            DEV("{%d} ticks=%s", totalAttempts, ticks);
-            LockState state2 = dLink.readLock(datasourceId);
-            if ( LockState.isFree(state2) ) {
-                // Lock became free.
-                DEV("Poll lock attempt=%d - lock became free", sameTickAttempts);
-                return LockState.UNLOCKED;
-            }
-
-            DEV("{%d} lock state %s", totalAttempts, state2);
-            Id sessionToken2 = state2.session;
-            long ticks2 = state2.ticks;
-
-            if ( ! Objects.equals(lockSession, sessionToken2) ) {
-                // Lock session id changed.
-                DEV("{%d} owner changed to %s", totalAttempts, sessionToken2);
-                return state2;
-            }
-            if ( ticks2 > ticks ) {
-                DEV("{%d} ticks advanced %d", totalAttempts, ticks2);
-                lockState = state2;
-                sameTickAttempts = 0;
-            } else
-                DEV("{%d} ticks did not advance", totalAttempts);
-            // And loop.
-        }
+    private static LockState pollReadLock(DeltaLink dLink, Id datasourceId, LockState state) {
+        return dLink.readLock(datasourceId);
     }
 }
