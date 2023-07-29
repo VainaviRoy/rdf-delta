@@ -18,6 +18,7 @@
 package org.seaborne.delta;
 
 import static org.apache.jena.rdfpatch.system.URNs.*;
+import static org.seaborne.delta.UUIDHandler.shortUUIDstr;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
@@ -51,10 +52,6 @@ public final class Id {
     /** Length in chars of a UUID string, without any scheme info */
     public static int lenStrUUID() { return nilStr.length(); }
 
-    /** Quick test of whether a string looks like an UUID or not */
-    public static boolean maybeUUID(String str) {
-        return str.length() == nilStr.length() && str.charAt(8)=='-';
-    }
 
     public static Id nullId() { return nilId; }
 
@@ -140,14 +137,7 @@ public final class Id {
         }
     }
 
-    /** Parse a UUID string, return a default if it does not parse correctly */
-    public static UUID parseUUID(String patchStr, UUID dft) {
-        try {
-            return UUID.fromString(patchStr);
-        } catch (IllegalArgumentException ex) {
-            return dft;
-        }
-    }
+
 
     /**
      * Create an Id from a UUID string, return a default if the UUID string
@@ -239,20 +229,6 @@ public final class Id {
         return scheme+"\""+string+"\"" ;
     }
 
-    public static String shortUUIDstr(UUID uuid) {
-        String str = uuid.toString();
-        int version = uuid.version();
-        if ( version == 1 )
-            // Type 1 : include varying part! xxxx-yyyy
-            // 19-28 is
-            //return str.substring(19, 28);
-            // 0-6 is the low end of the clock.
-            return uuid.toString().substring(0,6);
-        if ( version == 4 )
-            // Type 4 - use the first few hex characters.
-            return uuid.toString().substring(0,6);
-        return uuid.toString().substring(0,8);
-    }
 
     @Override
     public int hashCode() {
